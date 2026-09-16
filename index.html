@@ -99,7 +99,11 @@
 L* = 116·f(Y/Yn) − 16
 a* = 500·(f(X/Xn) − f(Y/Yn))
 b* = 200·(f(Y/Yn) − f(Z/Zn))</div>
-      
+      <p>Xn,Yn,Zn — координаты выбранного опорного белого.</p>
+
+      <h3>RGB ↔ HSV / HLS</h3>
+      <p>Стандартные секторные формулы по max/min каналов gamma-corrected RGB (0..1), без изменений.</p>
+
       <h3>RGB ↔ CMYK</h3>
       <div class="formula">C0=1−R, M0=1−G, Y0=1−B   (0..1)
 GCR: K=min(C0,M0,Y0)·amount;  C=(C0−K)/(1−K), ...

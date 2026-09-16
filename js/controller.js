@@ -188,6 +188,14 @@
       });
     });
 
+    document.querySelectorAll("[data-theme]").forEach(function(btn) {
+      btn.addEventListener("click", function() {
+        document.querySelectorAll("[data-theme]").forEach(function(b) { b.classList.remove("active"); });
+        btn.classList.add("active");
+        document.documentElement.setAttribute("data-theme", btn.dataset.theme);
+      });
+    });
+
     document.getElementById("hexInput").addEventListener("change", function(e) {
       var hex = e.target.value.replace(/[^0-9a-fA-F]/g, "").padEnd(6, "0").slice(0, 6);
       var r = parseInt(hex.slice(0, 2), 16), g = parseInt(hex.slice(2, 4), 16), b = parseInt(hex.slice(4, 6), 16);
