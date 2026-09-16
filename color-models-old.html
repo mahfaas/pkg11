@@ -1,0 +1,939 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Colorimeter — RGB · CMYK · HSV · HLS · XYZ · LAB</title>
+<style>
+:root{
+  --bg:#121317;
+  --panel:#191b21;
+  --panel-2:#1f222a;
+  --line:#2b2f3a;
+  --text:#eceef2;
+  --text-dim:#9aa0ad;
+  --text-faint:#666c7a;
+  --accent:#e0e0e0;
+  --warn:#e2a63c;
+  --warn-bg:#2c2413;
+  --mono: "IBM Plex Mono", "SFMono-Regular", Consolas, monospace;
+  --sans: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --radius: 3px;
+}
+@media (prefers-color-scheme: light){
+  :root:not([data-theme="dark"]){
+    --bg:#f3f2ee;
+    --panel:#ffffff;
+    --panel-2:#faf9f6;
+    --line:#dcdad3;
+    --text:#1a1a1a;
+    --text-dim:#5c5c5c;
+    --text-faint:#9a9a9a;
+    --warn:#8a5a00;
+    --warn-bg:#fbf0d9;
+  }
+}
+:root[data-theme="light"]{
+  --bg:#f3f2ee;
+  --panel:#ffffff;
+  --panel-2:#faf9f6;
+  --line:#dcdad3;
+  --text:#1a1a1a;
+  --text-dim:#5c5c5c;
+  --text-faint:#9a9a9a;
+  --warn:#8a5a00;
+  --warn-bg:#fbf0d9;
+}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;}
+body{
+  background:var(--bg);
+  color:var(--text);
+  font-family:var(--sans);
+  font-size:14px;
+  line-height:1.5;
+  padding:28px 20px 80px;
+}
+@font-face{}
+.wrap{max-width:1180px;margin:0 auto;}
+
+/* ---------- header ---------- */
+header{
+  display:flex;
+  flex-wrap:wrap;
+  justify-content:space-between;
+  align-items:flex-end;
+  gap:20px;
+  border-bottom:1px solid var(--line);
+  padding-bottom:18px;
+  margin-bottom:22px;
+}
+.title-block h1{
+  font-size:20px;
+  font-weight:600;
+  margin:0 0 4px;
+  letter-spacing:-0.01em;
+}
+.title-block p{
+  margin:0;
+  color:var(--text-dim);
+  font-size:12.5px;
+  max-width:56ch;
+}
+.settings{
+  display:flex;
+  gap:18px;
+  flex-wrap:wrap;
+  align-items:flex-end;
+}
+.setting{
+  display:flex;
+  flex-direction:column;
+  gap:5px;
+}
+.setting label{
+  font-size:10.5px;
+  color:var(--text-faint);
+  text-transform:uppercase;
+  letter-spacing:.06em;
+}
+select, .segbtn, input[type=text]{
+  font-family:var(--sans);
+  font-size:12.5px;
+  color:var(--text);
+  background:var(--panel-2);
+  border:1px solid var(--line);
+  border-radius:var(--radius);
+  padding:6px 8px;
+}
+.seg{display:flex;border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;}
+.segbtn{border:none;border-right:1px solid var(--line);cursor:pointer;background:var(--panel-2);color:var(--text-dim);padding:6px 10px;}
+.segbtn:last-child{border-right:none;}
+.segbtn.active{background:var(--text);color:var(--bg);}
+.amount-row{display:flex;align-items:center;gap:8px;}
+.amount-row input[type=range]{width:90px;}
+.amount-row span{font-family:var(--mono);font-size:11.5px;color:var(--text-dim);width:32px;}
+
+/* ---------- top: preview + picker ---------- */
+.top{
+  display:grid;
+  grid-template-columns: 220px 1fr 280px;
+  gap:18px;
+  margin-bottom:26px;
+}
+@media (max-width:900px){ .top{grid-template-columns:1fr;} }
+
+.preview-card{
+  background:var(--panel);
+  border:1px solid var(--line);
+  border-radius:var(--radius);
+  padding:14px;
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+}
+.swatch{
+  height:120px;
+  border-radius:var(--radius);
+  border:1px solid var(--line);
+  position:relative;
+}
+.hex-row{display:flex;gap:6px;align-items:center;}
+.hex-row input{flex:1;font-family:var(--mono);}
+.hex-row .hash{color:var(--text-faint);font-family:var(--mono);}
+.btn-row{display:flex;gap:6px;}
+.btn{
+  flex:1;
+  font-family:var(--sans);
+  font-size:11.5px;
+  padding:7px 8px;
+  background:var(--panel-2);
+  border:1px solid var(--line);
+  color:var(--text-dim);
+  border-radius:var(--radius);
+  cursor:pointer;
+}
+.btn:hover{color:var(--text);border-color:var(--text-faint);}
+
+.picker-card{
+  background:var(--panel);
+  border:1px solid var(--line);
+  border-radius:var(--radius);
+  padding:14px;
+  display:flex;
+  gap:14px;
+  align-items:stretch;
+}
+#svCanvas{border-radius:var(--radius);cursor:crosshair;touch-action:none;}
+.hue-col{display:flex;flex-direction:column;align-items:center;gap:6px;}
+#hueCanvas{border-radius:var(--radius);cursor:pointer;touch-action:none;}
+.picker-note{color:var(--text-faint);font-size:11px;margin-top:6px;}
+
+.warn-card{
+  background:var(--panel);
+  border:1px solid var(--line);
+  border-radius:var(--radius);
+  padding:14px;
+  font-size:12px;
+  color:var(--text-dim);
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+}
+.warn-banner{
+  display:none;
+  background:var(--warn-bg);
+  border:1px solid var(--warn);
+  color:var(--warn);
+  border-radius:var(--radius);
+  padding:8px 10px;
+  font-size:11.5px;
+  line-height:1.4;
+}
+.warn-banner.show{display:block;}
+.illum-note{font-size:11px;color:var(--text-faint);}
+
+/* ---------- models grid ---------- */
+.models{
+  display:grid;
+  grid-template-columns:repeat(3, 1fr);
+  gap:14px;
+}
+@media (max-width:900px){ .models{grid-template-columns:repeat(2,1fr);} }
+@media (max-width:600px){ .models{grid-template-columns:1fr;} }
+
+.model-card{
+  background:var(--panel);
+  border:1px solid var(--line);
+  border-radius:var(--radius);
+  padding:14px;
+}
+.model-card h2{
+  font-size:12px;
+  font-weight:600;
+  margin:0 0 10px;
+  letter-spacing:.03em;
+  color:var(--text);
+  display:flex;
+  justify-content:space-between;
+  align-items:baseline;
+}
+.model-card h2 small{font-size:10px;font-weight:400;color:var(--text-faint);}
+.channel{margin-bottom:11px;}
+.channel:last-child{margin-bottom:0;}
+.channel-head{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  margin-bottom:4px;
+}
+.channel-head label{font-size:11px;color:var(--text-dim);font-family:var(--mono);}
+.channel-head input[type=number]{
+  width:64px;
+  font-family:var(--mono);
+  font-size:12px;
+  background:var(--panel-2);
+  border:1px solid var(--line);
+  color:var(--text);
+  border-radius:var(--radius);
+  padding:3px 5px;
+  text-align:right;
+}
+input[type=range]{
+  -webkit-appearance:none;
+  appearance:none;
+  width:100%;
+  height:16px;
+  border-radius:8px;
+  background:#808080;
+  border:1px solid var(--line);
+}
+input[type=range]::-webkit-slider-thumb{
+  -webkit-appearance:none;
+  width:12px;height:12px;border-radius:50%;
+  background:#fff;
+  border:2px solid #1a1a1a;
+  margin-top:0;
+  cursor:pointer;
+}
+input[type=range]::-moz-range-thumb{
+  width:12px;height:12px;border-radius:50%;
+  background:#fff;border:2px solid #1a1a1a;cursor:pointer;
+}
+
+footer{
+  margin-top:30px;
+  border-top:1px solid var(--line);
+  padding-top:14px;
+}
+details{color:var(--text-dim);font-size:12px;}
+summary{cursor:pointer;color:var(--text);font-size:12.5px;font-weight:600;margin-bottom:8px;}
+.formula{
+  font-family:var(--mono);
+  background:var(--panel-2);
+  border:1px solid var(--line);
+  border-radius:var(--radius);
+  padding:8px 10px;
+  margin:6px 0;
+  font-size:11.5px;
+  white-space:pre-wrap;
+  color:var(--text);
+}
+footer h3{font-size:12px;color:var(--text);margin:16px 0 4px;}
+footer p{margin:4px 0;font-size:12px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="title-block">
+      <h1>Colorimeter</h1>
+      <p>RGB · CMYK · HSV · HLS · XYZ · L*a*b* — every conversion is computed here from first principles: no color-management library is used, the RGB↔XYZ matrix is rebuilt from primaries and white point whenever the illuminant changes.</p>
+    </div>
+    <div class="settings">
+      <div class="setting">
+        <label>Опорный белый</label>
+        <select id="illuminant">
+          <option value="D65">D65 — дневной свет, sRGB</option>
+          <option value="D50">D50 — полиграфия</option>
+          <option value="E">E — равноэнергетический</option>
+        </select>
+      </div>
+      <div class="setting">
+        <label>Цветоделение CMYK</label>
+        <div class="seg">
+          <button class="segbtn active" data-algo="GCR">GCR</button>
+          <button class="segbtn" data-algo="UCR">UCR</button>
+        </div>
+      </div>
+      <div class="setting">
+        <label id="amountLabel">Сила GCR</label>
+        <div class="amount-row">
+          <input type="range" id="cmykAmount" min="0" max="100" value="100">
+          <span id="cmykAmountVal">100%</span>
+        </div>
+      </div>
+      <div class="setting">
+        <label>Выход за гамму</label>
+        <div class="seg">
+          <button class="segbtn active" data-gamut="clip">Clipping</button>
+          <button class="segbtn" data-gamut="scale">Scaling</button>
+        </div>
+      </div>
+      <div class="setting">
+        <label>Тема</label>
+        <div class="seg">
+          <button class="segbtn" data-theme="light">Светлая</button>
+          <button class="segbtn active" data-theme="dark">Тёмная</button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <div class="top">
+    <div class="preview-card">
+      <div class="swatch" id="swatch"></div>
+      <div class="hex-row"><span class="hash">#</span><input type="text" id="hexInput" maxlength="6" value="8899DD"></div>
+      <div class="btn-row">
+        <button class="btn" id="randomBtn">Случайный</button>
+        <button class="btn" id="resetBtn">Сброс</button>
+      </div>
+    </div>
+
+    <div class="picker-card">
+      <canvas id="svCanvas" width="230" height="150"></canvas>
+      <div class="hue-col">
+        <canvas id="hueCanvas" width="22" height="150"></canvas>
+      </div>
+      <div style="align-self:flex-end;">
+        <p class="picker-note">Клик/перетаскивание — выбор насыщенности и яркости (X/Y) при фиксированном тоне справа.</p>
+      </div>
+    </div>
+
+    <div class="warn-card">
+      <div class="warn-banner" id="gamutWarning">⚠ Цвет вне цветового охвата RGB для выбранного опорного белого — применена коррекция (<span id="gamutStrategyLabel">clipping</span>).</div>
+      <div class="illum-note" id="whiteInfo"></div>
+      <div class="illum-note">Матрица RGB→XYZ пересчитывается заново при каждой смене опорного белого — см. формулы внизу страницы.</div>
+    </div>
+  </div>
+
+  <div class="models" id="modelsGrid"></div>
+
+  <footer>
+    <details>
+      <summary>Формулы и допущения</summary>
+      <h3>RGB → XYZ</h3>
+      <p>Матрица не захардкожена: она строится из хроматичностей праймериз sRGB (R 0.6400/0.3300, G 0.3000/0.6000, B 0.1500/0.0600) и точки белого выбранного стандарта освещения методом Брюса Линдблума (решение M·S=W, затем масштабирование столбцов на S). При смене освещения меняется только W — матрица пересчитывается на лету.</p>
+      <div class="formula">Xr=xr/yr, Zr=(1-xr-yr)/yr  (аналогично для G,B)
+M = [[Xr,Xg,Xb],[1,1,1],[Zr,Zg,Zb]]
+S = M⁻¹ · [Xw,Yw,Zw]ᵀ
+N = [Xr·Sr, Xg·Sg, Xb·Sb; Sr,Sg,Sb; Zr·Sr,Zg·Sg,Zb·Sb]
+[X,Y,Z] = N · [Rlin,Glin,Blin],  Rlin из sRGB через гамма-функцию</div>
+      <h3>XYZ ↔ L*a*b*</h3>
+      <div class="formula">f(t) = t^(1/3)         если t > (6/29)³
+f(t) = t/(3·(6/29)²) + 4/29   иначе
+L* = 116·f(Y/Yn) − 16
+a* = 500·(f(X/Xn) − f(Y/Yn))
+b* = 200·(f(Y/Yn) − f(Z/Zn))</div>
+      <p>Xn,Yn,Zn — координаты выбранного опорного белого (тот же пересчитываемый набор, Yn=100).</p>
+      <h3>RGB ↔ HSV / HLS</h3>
+      <p>Стандартные секторные формулы по max/min каналов gamma-corrected RGB (0..1), без изменений.</p>
+      <h3>RGB → CMYK</h3>
+      <div class="formula">C0=1−R, M0=1−G, Y0=1−B   (0..1)
+GCR: K=min(C0,M0,Y0)·amount;  C=(C0−K)/(1−K), ...
+UCR: K=min(C0,M0,Y0)·amount;  C=max(0, C0−K), ...   (без ренормировки — чернее в тенях, менее «вымыты» света)
+CMYK→RGB: R=(1−C)(1−K), ...</div>
+      <p>GCR заменяет серую составляющую чёрным по всему диапазону тонов; UCR — только убирает часть CMY, не перераспределяя её в K пропорционально, что даёт более узкую, теневую коррекцию. Ползунок «сила» — доля K, которая реально применяется (0–100%).</p>
+      <h3>Выход за цветовой охват (XYZ/LAB → RGB)</h3>
+      <div class="formula">Clipping: v' = clamp(v, 0, 1)
+Scaling:  lo=min(0,R,G,B), hi=max(1,R,G,B); v' = (v−lo)/(hi−lo)</div>
+      <p>Предупреждение показывается, если хотя бы один линейный канал до коррекции выходил за [0,1].</p>
+    </details>
+  </footer>
+
+</div>
+
+<script>
+(function(){
+"use strict";
+
+/* ===================== math helpers ===================== */
+function clamp(v,a,b){return Math.min(b,Math.max(a,v));}
+
+function invert3x3(m){
+  var a=m[0][0],b=m[0][1],c=m[0][2],
+      d=m[1][0],e=m[1][1],f=m[1][2],
+      g=m[2][0],h=m[2][1],i=m[2][2];
+  var A=(e*i-f*h), B=-(d*i-f*g), C=(d*h-e*g);
+  var D=-(b*i-c*h), E=(a*i-c*g), F=-(a*h-b*g);
+  var G=(b*f-c*e), H=-(a*f-c*d), I=(a*e-b*d);
+  var det = a*A + b*B + c*C;
+  if(Math.abs(det) < 1e-12) det = 1e-12;
+  return [
+    [A/det, D/det, G/det],
+    [B/det, E/det, H/det],
+    [C/det, F/det, I/det]
+  ];
+}
+function matVec3(m,v){
+  return [
+    m[0][0]*v[0]+m[0][1]*v[1]+m[0][2]*v[2],
+    m[1][0]*v[0]+m[1][1]*v[1]+m[1][2]*v[2],
+    m[2][0]*v[0]+m[2][1]*v[1]+m[2][2]*v[2]
+  ];
+}
+
+/* sRGB transfer function */
+function srgbToLinear(c){
+  return c<=0.04045 ? c/12.92 : Math.pow((c+0.055)/1.055, 2.4);
+}
+function linearToSrgb(c){
+  c = clamp(c,0,1);
+  return c<=0.0031308 ? c*12.92 : 1.055*Math.pow(c,1/2.4)-0.055;
+}
+
+/* chromaticity xy (+Y) -> XYZ */
+function xyToXYZ(x,y,Y){
+  Y = Y===undefined?1:Y;
+  return [ (x/y)*Y, Y, ((1-x-y)/y)*Y ];
+}
+
+var PRIMARIES = {
+  r:{x:0.6400,y:0.3300},
+  g:{x:0.3000,y:0.6000},
+  b:{x:0.1500,y:0.0600}
+};
+var WHITES = {
+  D65:{x:0.31271,y:0.32902, label:"D65 (дневной свет, sRGB)"},
+  D50:{x:0.34567,y:0.35850, label:"D50 (полиграфия)"},
+  E:  {x:1/3,    y:1/3,     label:"E (равноэнергетический)"}
+};
+
+/* build RGB(lin)->XYZ matrix from primaries + white point (Bruce Lindbloom method) */
+function buildRGBtoXYZMatrix(whiteKey){
+  var w = WHITES[whiteKey];
+  var Xr=PRIMARIES.r.x/PRIMARIES.r.y, Zr=(1-PRIMARIES.r.x-PRIMARIES.r.y)/PRIMARIES.r.y;
+  var Xg=PRIMARIES.g.x/PRIMARIES.g.y, Zg=(1-PRIMARIES.g.x-PRIMARIES.g.y)/PRIMARIES.g.y;
+  var Xb=PRIMARIES.b.x/PRIMARIES.b.y, Zb=(1-PRIMARIES.b.x-PRIMARIES.b.y)/PRIMARIES.b.y;
+  var M = [
+    [Xr, Xg, Xb],
+    [1,  1,  1 ],
+    [Zr, Zg, Zb]
+  ];
+  var W = xyToXYZ(w.x, w.y, 1);
+  var S = matVec3(invert3x3(M), W);
+  var N = [
+    [Xr*S[0], Xg*S[1], Xb*S[2]],
+    [1 *S[0], 1 *S[1], 1 *S[2]],
+    [Zr*S[0], Zg*S[1], Zb*S[2]]
+  ];
+  return N;
+}
+
+/* ===================== global state ===================== */
+var state = {
+  linR:0.53, linG:0.60, linB:0.80,  // canonical: linear RGB, always kept within [0,1]
+  illuminant:"D65",
+  cmykAlgo:"GCR",
+  cmykAmount:1.0,
+  gamutStrategy:"clip"
+};
+var mats = {N:null, Ninv:null, white:null};
+
+function rebuildMatrices(){
+  mats.N = buildRGBtoXYZMatrix(state.illuminant);
+  mats.Ninv = invert3x3(mats.N);
+  mats.white = xyToXYZ(WHITES[state.illuminant].x, WHITES[state.illuminant].y, 100);
+}
+
+/* gamut mapping on a linear rgb triple -> {r,g,b,outOfGamut} still linear [0,1]-ish */
+function mapGamut(r,g,b,strategy){
+  var out = (r<0||r>1||g<0||g>1||b<0||b>1);
+  if(!out) return {r:r,g:g,b:b,outOfGamut:false};
+  if(strategy==="clip"){
+    return {r:clamp(r,0,1), g:clamp(g,0,1), b:clamp(b,0,1), outOfGamut:true};
+  } else {
+    var lo = Math.min(0,r,g,b), hi = Math.max(1,r,g,b);
+    var span = (hi-lo)||1;
+    return {r:(r-lo)/span, g:(g-lo)/span, b:(b-lo)/span, outOfGamut:true};
+  }
+}
+
+/* ===================== forward conversions from canonical linear RGB ===================== */
+function getRGB255(){
+  return [
+    Math.round(linearToSrgb(state.linR)*255),
+    Math.round(linearToSrgb(state.linG)*255),
+    Math.round(linearToSrgb(state.linB)*255)
+  ];
+}
+function rgb255ToHSV(r,g,b){
+  r/=255; g/=255; b/=255;
+  var max=Math.max(r,g,b), min=Math.min(r,g,b), d=max-min;
+  var h=0;
+  if(d!==0){
+    if(max===r) h=60*(((g-b)/d)%6);
+    else if(max===g) h=60*((b-r)/d+2);
+    else h=60*((r-g)/d+4);
+  }
+  if(h<0) h+=360;
+  var s = max===0?0:d/max;
+  return [h, s*100, max*100];
+}
+function hsvToRGB255(h,s,v){
+  s/=100; v/=100;
+  var c=v*s, x=c*(1-Math.abs((h/60)%2-1)), m=v-c, r,g,b;
+  if(h<60){r=c;g=x;b=0;} else if(h<120){r=x;g=c;b=0;} else if(h<180){r=0;g=c;b=x;}
+  else if(h<240){r=0;g=x;b=c;} else if(h<300){r=x;g=0;b=c;} else {r=c;g=0;b=x;}
+  return [Math.round((r+m)*255), Math.round((g+m)*255), Math.round((b+m)*255)];
+}
+function rgb255ToHLS(r,g,b){
+  r/=255; g/=255; b/=255;
+  var max=Math.max(r,g,b), min=Math.min(r,g,b), d=max-min;
+  var l=(max+min)/2, h=0, s=0;
+  if(d!==0){
+    s = d/(1-Math.abs(2*l-1));
+    if(max===r) h=60*(((g-b)/d)%6);
+    else if(max===g) h=60*((b-r)/d+2);
+    else h=60*((r-g)/d+4);
+    if(h<0) h+=360;
+  }
+  return [h, l*100, s*100];
+}
+function hlsToRGB255(h,l,s){
+  l/=100; s/=100;
+  var c=(1-Math.abs(2*l-1))*s, x=c*(1-Math.abs((h/60)%2-1)), m=l-c/2, r,g,b;
+  if(h<60){r=c;g=x;b=0;} else if(h<120){r=x;g=c;b=0;} else if(h<180){r=0;g=c;b=x;}
+  else if(h<240){r=0;g=x;b=c;} else if(h<300){r=x;g=0;b=c;} else {r=c;g=0;b=x;}
+  return [Math.round((r+m)*255), Math.round((g+m)*255), Math.round((b+m)*255)];
+}
+function rgb255ToCMYK(r,g,b,algo,amount){
+  var C0=1-r/255, M0=1-g/255, Y0=1-b/255;
+  var Kraw = Math.min(C0,M0,Y0);
+  var K = Kraw*amount;
+  var C,M,Y;
+  if(algo==="GCR"){
+    var denom = 1-K;
+    C = denom>1e-6 ? (C0-K)/denom : 0;
+    M = denom>1e-6 ? (M0-K)/denom : 0;
+    Y = denom>1e-6 ? (Y0-K)/denom : 0;
+  } else { // UCR
+    C = C0-K; M = M0-K; Y = Y0-K;
+  }
+  return [clamp(C,0,1)*100, clamp(M,0,1)*100, clamp(Y,0,1)*100, clamp(K,0,1)*100];
+}
+function cmykToRGB255(c,m,y,k){
+  c/=100; m/=100; y/=100; k/=100;
+  var r=(1-c)*(1-k), g=(1-m)*(1-k), b=(1-y)*(1-k);
+  return [Math.round(r*255), Math.round(g*255), Math.round(b*255)];
+}
+function linearRGBtoXYZ100(){
+  var v = matVec3(mats.N, [state.linR, state.linG, state.linB]);
+  return [v[0]*100, v[1]*100, v[2]*100];
+}
+function fLab(t){
+  var d = 6/29;
+  return t > d*d*d ? Math.cbrt(t) : t/(3*d*d) + 4/29;
+}
+function finvLab(t){
+  var d = 6/29;
+  return t > d ? t*t*t : 3*d*d*(t-4/29);
+}
+function xyz100ToLab(X,Y,Z){
+  var xr=X/mats.white[0], yr=Y/mats.white[1], zr=Z/mats.white[2];
+  var fx=fLab(xr), fy=fLab(yr), fz=fLab(zr);
+  return [116*fy-16, 500*(fx-fy), 200*(fy-fz)];
+}
+function labToXyz100(L,a,b){
+  var fy=(L+16)/116, fx=fy+a/500, fz=fy-b/200;
+  return [ finvLab(fx)*mats.white[0], finvLab(fy)*mats.white[1], finvLab(fz)*mats.white[2] ];
+}
+
+/* ===================== setters: model values -> canonical linear RGB ===================== */
+var lastOutOfGamut = false;
+
+function setFromRGB255(r,g,b){
+  state.linR = srgbToLinear(clamp(r,0,255)/255);
+  state.linG = srgbToLinear(clamp(g,0,255)/255);
+  state.linB = srgbToLinear(clamp(b,0,255)/255);
+  lastOutOfGamut = false;
+}
+function setFromHSV(h,s,v){
+  var rgb = hsvToRGB255(h,s,v);
+  setFromRGB255(rgb[0],rgb[1],rgb[2]);
+}
+function setFromHLS(h,l,s){
+  var rgb = hlsToRGB255(h,l,s);
+  setFromRGB255(rgb[0],rgb[1],rgb[2]);
+}
+function setFromCMYK(c,m,y,k){
+  var rgb = cmykToRGB255(c,m,y,k);
+  setFromRGB255(rgb[0],rgb[1],rgb[2]);
+}
+function setFromXYZ100(X,Y,Z){
+  var lin = matVec3(mats.Ninv, [X/100, Y/100, Z/100]);
+  var mapped = mapGamut(lin[0],lin[1],lin[2],state.gamutStrategy);
+  state.linR=mapped.r; state.linG=mapped.g; state.linB=mapped.b;
+  lastOutOfGamut = mapped.outOfGamut;
+}
+function setFromLab(L,a,b){
+  var xyz = labToXyz100(L,a,b);
+  setFromXYZ100(xyz[0],xyz[1],xyz[2]);
+}
+
+/* ===================== model registry ===================== */
+var MODELS = [
+  {
+    key:"RGB", title:"RGB", sub:"устройство / sRGB",
+    channels:[
+      {label:"R", min:0, max:255, step:1, decimals:0},
+      {label:"G", min:0, max:255, step:1, decimals:0},
+      {label:"B", min:0, max:255, step:1, decimals:0}
+    ],
+    get: function(){ return getRGB255(); },
+    set: function(v){ setFromRGB255(v[0],v[1],v[2]); }
+  },
+  {
+    key:"HSV", title:"HSV", sub:"тон / насыщ. / яркость",
+    channels:[
+      {label:"H", min:0, max:360, step:1, decimals:0},
+      {label:"S", min:0, max:100, step:0.1, decimals:1},
+      {label:"V", min:0, max:100, step:0.1, decimals:1}
+    ],
+    get: function(){ var c=getRGB255(); return rgb255ToHSV(c[0],c[1],c[2]); },
+    set: function(v){ setFromHSV(v[0],v[1],v[2]); }
+  },
+  {
+    key:"HLS", title:"HLS", sub:"тон / светлота / насыщ.",
+    channels:[
+      {label:"H", min:0, max:360, step:1, decimals:0},
+      {label:"L", min:0, max:100, step:0.1, decimals:1},
+      {label:"S", min:0, max:100, step:0.1, decimals:1}
+    ],
+    get: function(){ var c=getRGB255(); return rgb255ToHLS(c[0],c[1],c[2]); },
+    set: function(v){ setFromHLS(v[0],v[1],v[2]); }
+  },
+  {
+    key:"CMYK", title:"CMYK", sub:"полиграфия",
+    channels:[
+      {label:"C", min:0, max:100, step:0.1, decimals:1},
+      {label:"M", min:0, max:100, step:0.1, decimals:1},
+      {label:"Y", min:0, max:100, step:0.1, decimals:1},
+      {label:"K", min:0, max:100, step:0.1, decimals:1}
+    ],
+    get: function(){ var c=getRGB255(); return rgb255ToCMYK(c[0],c[1],c[2],state.cmykAlgo,state.cmykAmount); },
+    set: function(v){ setFromCMYK(v[0],v[1],v[2],v[3]); }
+  },
+  {
+    key:"XYZ", title:"XYZ", sub:"CIE 1931",
+    channels:[
+      {label:"X", min:0, max:120, step:0.1, decimals:2},
+      {label:"Y", min:0, max:120, step:0.1, decimals:2},
+      {label:"Z", min:0, max:120, step:0.1, decimals:2}
+    ],
+    get: function(){ return linearRGBtoXYZ100(); },
+    set: function(v){ setFromXYZ100(v[0],v[1],v[2]); }
+  },
+  {
+    key:"LAB", title:"L*a*b*", sub:"CIE 1976",
+    channels:[
+      {label:"L", min:0, max:100, step:0.1, decimals:2},
+      {label:"a", min:-128, max:127, step:0.1, decimals:2},
+      {label:"b", min:-128, max:127, step:0.1, decimals:2}
+    ],
+    get: function(){ var xyz=linearRGBtoXYZ100(); return xyz100ToLab(xyz[0],xyz[1],xyz[2]); },
+    set: function(v){ setFromLab(v[0],v[1],v[2]); }
+  }
+];
+
+/* ===================== DOM build ===================== */
+var grid = document.getElementById("modelsGrid");
+MODELS.forEach(function(model){
+  var card = document.createElement("div");
+  card.className = "model-card";
+  var h2 = document.createElement("h2");
+  h2.innerHTML = model.title + " <small>"+model.sub+"</small>";
+  card.appendChild(h2);
+  model.rows = [];
+  model.channels.forEach(function(ch, idx){
+    var row = document.createElement("div");
+    row.className = "channel";
+    var head = document.createElement("div");
+    head.className = "channel-head";
+    var lab = document.createElement("label");
+    lab.textContent = ch.label;
+    var num = document.createElement("input");
+    num.type = "number";
+    num.min = ch.min; num.max = ch.max; num.step = ch.step;
+    head.appendChild(lab); head.appendChild(num);
+    var slider = document.createElement("input");
+    slider.type = "range";
+    slider.min = ch.min; slider.max = ch.max; slider.step = ch.step;
+    row.appendChild(head); row.appendChild(slider);
+    card.appendChild(row);
+    model.rows.push({num:num, slider:slider});
+
+    function onEdit(rawVal){
+      var vals = model.rows.map(function(r,i){
+        return i===idx ? rawVal : parseFloat(r.num.value);
+      });
+      model.set(vals);
+      refreshAll(model.key);
+    }
+    num.addEventListener("input", function(){ onEdit(parseFloat(num.value)||0); });
+    slider.addEventListener("input", function(){ onEdit(parseFloat(slider.value)); });
+  });
+  grid.appendChild(card);
+});
+
+/* ===================== gradient generation for sliders ===================== */
+function toCssColor(rgb255){
+  return "rgb("+clamp(Math.round(rgb255[0]),0,255)+","+clamp(Math.round(rgb255[1]),0,255)+","+clamp(Math.round(rgb255[2]),0,255)+")";
+}
+function modelValuesToRGB255(model, vals){
+  // preview-only conversion: mirrors model.set()'s path but returns display rgb without touching state
+  switch(model.key){
+    case "RGB": return [vals[0],vals[1],vals[2]];
+    case "HSV": return hsvToRGB255(vals[0],vals[1],vals[2]);
+    case "HLS": return hlsToRGB255(vals[0],vals[1],vals[2]);
+    case "CMYK": return cmykToRGB255(vals[0],vals[1],vals[2],vals[3]);
+    case "XYZ": {
+      var lin = matVec3(mats.Ninv, [vals[0]/100, vals[1]/100, vals[2]/100]);
+      var g = mapGamut(lin[0],lin[1],lin[2],state.gamutStrategy);
+      return [linearToSrgb(g.r)*255, linearToSrgb(g.g)*255, linearToSrgb(g.b)*255];
+    }
+    case "LAB": {
+      var xyz = labToXyz100(vals[0],vals[1],vals[2]);
+      var lin2 = matVec3(mats.Ninv, [xyz[0]/100, xyz[1]/100, xyz[2]/100]);
+      var g2 = mapGamut(lin2[0],lin2[1],lin2[2],state.gamutStrategy);
+      return [linearToSrgb(g2.r)*255, linearToSrgb(g2.g)*255, linearToSrgb(g2.b)*255];
+    }
+  }
+}
+function updateSliderGradients(){
+  MODELS.forEach(function(model){
+    var current = model.get();
+    model.channels.forEach(function(ch, idx){
+      var stops = [];
+      var STEPS = 14;
+      for(var i=0;i<=STEPS;i++){
+        var t = ch.min + (ch.max-ch.min)*i/STEPS;
+        var vals = current.slice();
+        vals[idx] = t;
+        var rgb = modelValuesToRGB255(model, vals);
+        stops.push(toCssColor(rgb));
+      }
+      model.rows[idx].slider.style.background = "linear-gradient(90deg,"+stops.join(",")+")";
+    });
+  });
+}
+
+/* ===================== refresh loop ===================== */
+function refreshFields(skipKey){
+  MODELS.forEach(function(model){
+    if(model.key===skipKey) return;
+    var vals = model.get();
+    model.rows.forEach(function(row, idx){
+      var ch = model.channels[idx];
+      var v = vals[idx];
+      row.num.value = ch.decimals===0 ? Math.round(v) : v.toFixed(ch.decimals);
+      row.slider.value = v;
+    });
+  });
+  // also refresh the editing model's own display (rounded) for consistency, but not while typing
+}
+function refreshEditedFieldsDisplay(key){
+  var model = MODELS.filter(function(m){return m.key===key;})[0];
+  if(!model) return;
+  var vals = model.get();
+  model.rows.forEach(function(row, idx){
+    var ch = model.channels[idx];
+    row.slider.value = vals[idx];
+  });
+}
+function refreshPreview(){
+  var rgb = getRGB255();
+  var css = toCssColor(rgb);
+  document.getElementById("swatch").style.background = css;
+  var hex = rgb.map(function(c){return clamp(Math.round(c),0,255).toString(16).padStart(2,"0");}).join("");
+  document.getElementById("hexInput").value = hex.toUpperCase();
+  document.getElementById("gamutWarning").classList.toggle("show", lastOutOfGamut);
+  var w = WHITES[state.illuminant];
+  document.getElementById("whiteInfo").textContent = "Опорный белый: "+w.label+"  (x="+w.x.toFixed(5)+", y="+w.y.toFixed(5)+")";
+  drawPickers();
+}
+function refreshAll(editedKey){
+  refreshFields(editedKey);
+  if(editedKey) refreshEditedFieldsDisplay(editedKey);
+  updateSliderGradients();
+  refreshPreview();
+}
+
+/* ===================== SV / Hue picker ===================== */
+var svCanvas = document.getElementById("svCanvas"), svCtx = svCanvas.getContext("2d");
+var hueCanvas = document.getElementById("hueCanvas"), hueCtx = hueCanvas.getContext("2d");
+
+function drawPickers(){
+  var rgb = getRGB255();
+  var hsv = rgb255ToHSV(rgb[0],rgb[1],rgb[2]);
+  var h=hsv[0], s=hsv[1], v=hsv[2];
+
+  // SV square for current hue
+  var w=svCanvas.width, hgt=svCanvas.height;
+  var base = hsvToRGB255(h,100,100);
+  svCtx.clearRect(0,0,w,hgt);
+  var gradW = svCtx.createLinearGradient(0,0,w,0);
+  gradW.addColorStop(0,"#ffffff");
+  gradW.addColorStop(1, toCssColor(base));
+  svCtx.fillStyle = gradW; svCtx.fillRect(0,0,w,hgt);
+  var gradB = svCtx.createLinearGradient(0,0,0,hgt);
+  gradB.addColorStop(0,"rgba(0,0,0,0)");
+  gradB.addColorStop(1,"#000000");
+  svCtx.fillStyle = gradB; svCtx.fillRect(0,0,w,hgt);
+  var mx = (s/100)*w, my = (1-v/100)*hgt;
+  svCtx.beginPath(); svCtx.arc(mx,my,5,0,7); svCtx.strokeStyle="#fff"; svCtx.lineWidth=2; svCtx.stroke();
+  svCtx.beginPath(); svCtx.arc(mx,my,5,0,7); svCtx.strokeStyle="rgba(0,0,0,.6)"; svCtx.lineWidth=1; svCtx.stroke();
+
+  // Hue strip
+  var hw=hueCanvas.width, hh=hueCanvas.height;
+  var gradH = hueCtx.createLinearGradient(0,0,0,hh);
+  for(var i=0;i<=6;i++){
+    var hue = i*60;
+    var c = hsvToRGB255(hue,100,100);
+    gradH.addColorStop(i/6, toCssColor(c));
+  }
+  hueCtx.clearRect(0,0,hw,hh);
+  hueCtx.fillStyle = gradH; hueCtx.fillRect(0,0,hw,hh);
+  var my2 = (h/360)*hh;
+  hueCtx.strokeStyle="#fff"; hueCtx.lineWidth=2;
+  hueCtx.strokeRect(0,my2-2,hw,4);
+  hueCtx.strokeStyle="rgba(0,0,0,.6)"; hueCtx.lineWidth=1;
+  hueCtx.strokeRect(0,my2-2,hw,4);
+}
+
+var draggingSV=false, draggingHue=false;
+function svPointer(e){
+  var rect = svCanvas.getBoundingClientRect();
+  var x = clamp((e.clientX-rect.left)/rect.width,0,1);
+  var y = clamp((e.clientY-rect.top)/rect.height,0,1);
+  var rgb=getRGB255(); var hsv=rgb255ToHSV(rgb[0],rgb[1],rgb[2]);
+  setFromHSV(hsv[0], x*100, (1-y)*100);
+  refreshAll(null);
+}
+function huePointer(e){
+  var rect = hueCanvas.getBoundingClientRect();
+  var y = clamp((e.clientY-rect.top)/rect.height,0,1);
+  var rgb=getRGB255(); var hsv=rgb255ToHSV(rgb[0],rgb[1],rgb[2]);
+  setFromHSV(y*360, hsv[1], hsv[2]);
+  refreshAll(null);
+}
+svCanvas.addEventListener("mousedown", function(e){draggingSV=true; svPointer(e);});
+window.addEventListener("mousemove", function(e){ if(draggingSV) svPointer(e); if(draggingHue) huePointer(e); });
+window.addEventListener("mouseup", function(){draggingSV=false; draggingHue=false;});
+hueCanvas.addEventListener("mousedown", function(e){draggingHue=true; huePointer(e);});
+svCanvas.addEventListener("touchstart", function(e){draggingSV=true; svPointer(e.touches[0]); e.preventDefault();},{passive:false});
+svCanvas.addEventListener("touchmove", function(e){ if(draggingSV) svPointer(e.touches[0]); e.preventDefault();},{passive:false});
+hueCanvas.addEventListener("touchstart", function(e){draggingHue=true; huePointer(e.touches[0]); e.preventDefault();},{passive:false});
+hueCanvas.addEventListener("touchmove", function(e){ if(draggingHue) huePointer(e.touches[0]); e.preventDefault();},{passive:false});
+window.addEventListener("touchend", function(){draggingSV=false; draggingHue=false;});
+
+/* ===================== top controls ===================== */
+document.getElementById("illuminant").addEventListener("change", function(e){
+  state.illuminant = e.target.value;
+  rebuildMatrices();
+  refreshAll(null);
+});
+document.querySelectorAll("[data-algo]").forEach(function(btn){
+  btn.addEventListener("click", function(){
+    document.querySelectorAll("[data-algo]").forEach(function(b){b.classList.remove("active");});
+    btn.classList.add("active");
+    state.cmykAlgo = btn.dataset.algo;
+    document.getElementById("amountLabel").textContent = "Сила " + state.cmykAlgo;
+    refreshAll(null);
+  });
+});
+document.getElementById("cmykAmount").addEventListener("input", function(e){
+  state.cmykAmount = parseFloat(e.target.value)/100;
+  document.getElementById("cmykAmountVal").textContent = e.target.value+"%";
+  refreshAll(null);
+});
+document.querySelectorAll("[data-gamut]").forEach(function(btn){
+  btn.addEventListener("click", function(){
+    document.querySelectorAll("[data-gamut]").forEach(function(b){b.classList.remove("active");});
+    btn.classList.add("active");
+    state.gamutStrategy = btn.dataset.gamut;
+    document.getElementById("gamutStrategyLabel").textContent = btn.dataset.gamut==="clip"?"clipping":"scaling";
+    refreshAll(null);
+  });
+});
+document.querySelectorAll("[data-theme]").forEach(function(btn){
+  btn.addEventListener("click", function(){
+    document.querySelectorAll("[data-theme]").forEach(function(b){b.classList.remove("active");});
+    btn.classList.add("active");
+    document.documentElement.setAttribute("data-theme", btn.dataset.theme);
+  });
+});
+document.getElementById("hexInput").addEventListener("change", function(e){
+  var hex = e.target.value.replace(/[^0-9a-fA-F]/g,"").padEnd(6,"0").slice(0,6);
+  var r=parseInt(hex.slice(0,2),16), g=parseInt(hex.slice(2,4),16), b=parseInt(hex.slice(4,6),16);
+  setFromRGB255(r,g,b);
+  refreshAll(null);
+});
+document.getElementById("randomBtn").addEventListener("click", function(){
+  setFromRGB255(Math.floor(Math.random()*256),Math.floor(Math.random()*256),Math.floor(Math.random()*256));
+  refreshAll(null);
+});
+document.getElementById("resetBtn").addEventListener("click", function(){
+  setFromRGB255(136,153,221);
+  refreshAll(null);
+});
+
+/* ===================== init ===================== */
+rebuildMatrices();
+refreshAll(null);
+
+})();
+</script>
+</body>
+</html>

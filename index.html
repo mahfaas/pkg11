@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Colorimeter MVC — RGB · LAB · CMYK</title>
+<link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="title-block">
+      <h1>Colorimeter MVC</h1>
+      <p>RGB · LAB · CMYK (Вариант 1) — каждый перевод считается математически на лету. Чистая MVC архитектура.</p>
+    </div>
+    <div class="settings">
+      <div class="setting">
+        <label>Опорный белый</label>
+        <select id="illuminant">
+          <option value="D65">D65 — дневной свет, sRGB</option>
+          <option value="D50">D50 — полиграфия</option>
+          <option value="E">E — равноэнергетический</option>
+        </select>
+      </div>
+      <div class="setting">
+        <label>Цветоделение CMYK</label>
+        <div class="seg">
+          <button class="segbtn active" data-algo="GCR">GCR</button>
+          <button class="segbtn" data-algo="UCR">UCR</button>
+        </div>
+      </div>
+      <div class="setting">
+        <label id="amountLabel">Сила GCR</label>
+        <div class="amount-row">
+          <input type="range" id="cmykAmount" min="0" max="100" value="100">
+          <span id="cmykAmountVal">100%</span>
+        </div>
+      </div>
+      <div class="setting">
+        <label>Выход за гамму</label>
+        <div class="seg">
+          <button class="segbtn active" data-gamut="clip">Clipping</button>
+          <button class="segbtn" data-gamut="scale">Scaling</button>
+        </div>
+      </div>
+      <div class="setting">
+        <label>Тема</label>
+        <div class="seg">
+          <button class="segbtn" data-theme="light">Светлая</button>
+          <button class="segbtn active" data-theme="dark">Тёмная</button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <div class="top">
+    <div class="preview-card">
+      <div class="swatch" id="swatch"></div>
+      <div class="hex-row">
+        <span class="hash">#</span>
+        <input type="text" id="hexInput" maxlength="6" value="8899DD" title="HEX код">
+        <input type="color" id="nativePicker" value="#8899DD" title="Выбор цвета (Палитра)">
+      </div>
+      <div class="btn-row">
+        <button class="btn" id="randomBtn">Случайный</button>
+        <button class="btn" id="resetBtn">Сброс</button>
+      </div>
+    </div>
+
+    <div class="picker-card">
+      <canvas id="svCanvas" width="230" height="150"></canvas>
+      <div class="hue-col">
+        <canvas id="hueCanvas" width="22" height="150"></canvas>
+      </div>
+      <div style="align-self:flex-end;">
+        <p class="picker-note">Клик/перетаскивание — выбор насыщенности и яркости (X/Y) при фиксированном тоне справа.</p>
+      </div>
+    </div>
+
+    <div class="warn-card">
+      <div class="warn-banner" id="gamutWarning">⚠ Цвет вне цветового охвата RGB для выбранного опорного белого — применена коррекция (<span id="gamutStrategyLabel">clipping</span>).</div>
+      <div class="illum-note" id="whiteInfo"></div>
+      <div class="illum-note">Матрица RGB→XYZ пересчитывается заново при каждой смене опорного белого (модель LAB зависит от XYZ).</div>
+    </div>
+  </div>
+
+  <!-- Контейнер для карточек, которые нарисует View -->
+  <div class="models" id="modelsGrid"></div>
+
+  <footer>
+    <details>
+      <summary>Формулы и допущения</summary>
+      <h3>RGB → XYZ (База для LAB)</h3>
+      <p>Матрица не захардкожена: она строится из хроматичностей праймериз sRGB (R 0.6400/0.3300, G 0.3000/0.6000, B 0.1500/0.0600) и точки белого выбранного стандарта освещения методом Брюса Линдблума.</p>
+      
+      <h3>XYZ ↔ LAB</h3>
+      <div class="formula">f(t) = t > (6/29)³ ? t^(1/3) : t/(3·(6/29)²) + 4/29
+L* = 116·f(Y/Yn) − 16
+a* = 500·(f(X/Xn) − f(Y/Yn))
+b* = 200·(f(Y/Yn) − f(Z/Zn))</div>
+      
+      <h3>RGB ↔ CMYK</h3>
+      <div class="formula">C0=1−R, M0=1−G, Y0=1−B   (0..1)
+GCR: K=min(C0,M0,Y0)·amount;  C=(C0−K)/(1−K), ...
+UCR: K=min(C0,M0,Y0)·amount;  C=max(0, C0−K), ...
+CMYK→RGB: R=(1−C)(1−K), ...</div>
+    </details>
+  </footer>
+
+</div>
+
+<!-- Подключаем слои MVC -->
+<script src="js/model.js"></script>
+<script src="js/view.js"></script>
+<script src="js/controller.js"></script>
+<script src="js/tests.js"></script>
+
+</body>
+</html>
