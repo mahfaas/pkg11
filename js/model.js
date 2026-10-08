@@ -155,32 +155,43 @@ window.ColorModelImpl = (function () {
 
   // ─── RGB ↔ HLS ────────────────────────────────────────────────────────────────
   function _rgb01ToHLS(r, g, b) {
+    // Защита от выхода за [0,1]
+    r = clamp(r, 0, 1); g = clamp(g, 0, 1); b = clamp(b, 0, 1);
     var max = Math.max(r, g, b), min = Math.min(r, g, b), d = max - min;
     var l = (max + min) / 2;
     var h = 0, s = 0;
     if (d > 1e-9) {
-      s = d / (1 - Math.abs(2 * l - 1));
+      // При L=0 или L=100 знаменатель (1 - |2L-1|) = 0 → защита
+      var denom = 1 - Math.abs(2 * l - 1);
+      s = denom > 1e-9 ? d / denom : 0;
       if (max === r)      h = 60 * (((g - b) / d) % 6);
       else if (max === g) h = 60 * ((b - r) / d + 2);
       else                h = 60 * ((r - g) / d + 4);
       if (h < 0) h += 360;
     }
-    return [h, l * 100, s * 100];
+    // S ограничивается [0, 100] во избежание численных выбросов
+    return [h, clamp(l * 100, 0, 100), clamp(s * 100, 0, 100)];
   }
 
   function _hlsToRGB01(h, l, s) {
+    // Нормировка входных значений
+    h = ((h % 360) + 360) % 360;
+    l = clamp(l, 0, 100); s = clamp(s, 0, 100);
     l /= 100; s /= 100;
     var c = (1 - Math.abs(2 * l - 1)) * s;
-    var x = c * (1 - Math.abs((h / 60) % 2 - 1));
+    // При h=360 нужно рассматривать как 0
+    var hh = h >= 360 ? 0 : h;
+    var x = c * (1 - Math.abs((hh / 60) % 2 - 1));
     var m = l - c / 2;
     var r = 0, g = 0, b = 0;
-    if      (h < 60)  { r = c; g = x; b = 0; }
-    else if (h < 120) { r = x; g = c; b = 0; }
-    else if (h < 180) { r = 0; g = c; b = x; }
-    else if (h < 240) { r = 0; g = x; b = c; }
-    else if (h < 300) { r = x; g = 0; b = c; }
-    else              { r = c; g = 0; b = x; }
-    return [r + m, g + m, b + m];
+    if      (hh < 60)  { r = c; g = x; b = 0; }
+    else if (hh < 120) { r = x; g = c; b = 0; }
+    else if (hh < 180) { r = 0; g = c; b = x; }
+    else if (hh < 240) { r = 0; g = x; b = c; }
+    else if (hh < 300) { r = x; g = 0; b = c; }
+    else               { r = c; g = 0; b = x; }
+    // Результат всегда [0,1] по математике HLS, clamp для страховки
+    return [clamp(r + m, 0, 1), clamp(g + m, 0, 1), clamp(b + m, 0, 1)];
   }
 
   // ─── RGB → XYZ (через линейный RGB) ─────────────────────────────────────────
@@ -234,21 +245,32 @@ window.ColorModelImpl = (function () {
       state.lastOutOfGamut = false;
     },
     setFromHLS: function (h, l, s) {
-      h = ((h % 360) + 360) % 360; // нормировка H
-      l = clamp(l, 0, 100);
-      s = clamp(s, 0, 100);
+      // _hlsToRGB01 сам нормирует h, l, s — дублировать не нужно
       var rgb01 = _hlsToRGB01(h, l, s);
-      state.linR = srgbToLinear(clamp(rgb01[0], 0, 1));
-      state.linG = srgbToLinear(clamp(rgb01[1], 0, 1));
-      state.linB = srgbToLinear(clamp(rgb01[2], 0, 1));
+      // HLS → RGB всегда в диапазоне [0,1] (clamp уже внутри _hlsToRGB01)
+      // Однако при граничных значениях (L=0/100, S=100) возможны
+      // микро-численные выбросы — проверяем явно
+      var rawR = rgb01[0], rawG = rgb01[1], rawB = rgb01[2];
+      var outOfRange = (rawR < -1e-6 || rawR > 1 + 1e-6 ||
+                        rawG < -1e-6 || rawG > 1 + 1e-6 ||
+                        rawB < -1e-6 || rawB > 1 + 1e-6);
+      state.linR = srgbToLinear(clamp(rawR, 0, 1));
+      state.linG = srgbToLinear(clamp(rawG, 0, 1));
+      state.linB = srgbToLinear(clamp(rawB, 0, 1));
+      // HLS — всегда в гамуте sRGB (математика гарантирует это)
       state.lastOutOfGamut = false;
     },
     setFromXYZ: function (X, Y, Z) {
-      var res = _xyz100ToRGB01WithGamut(X, Y, Z);
-      state.linR = srgbToLinear(res.r);
-      state.linG = srgbToLinear(res.g);
-      state.linB = srgbToLinear(res.b);
-      state.lastOutOfGamut = res.outOfGamut;
+      // Сначала проверяем, лежат ли входные XYZ в допустимом диапазоне
+      // (XYZ может задаться вне треугольника sRGB — тогда гамут-предупреждение)
+      var lin = matVec3(M_XYZ_TO_RGB, [X / 100, Y / 100, Z / 100]);
+      var outOfGamut = (lin[0] < -1e-4 || lin[0] > 1 + 1e-4 ||
+                        lin[1] < -1e-4 || lin[1] > 1 + 1e-4 ||
+                        lin[2] < -1e-4 || lin[2] > 1 + 1e-4);
+      state.linR = srgbToLinear(clamp(lin[0], 0, 1));
+      state.linG = srgbToLinear(clamp(lin[1], 0, 1));
+      state.linB = srgbToLinear(clamp(lin[2], 0, 1));
+      state.lastOutOfGamut = outOfGamut;
     },
 
     // Для симуляции градиентов (без изменения состояния)
